@@ -1,0 +1,7 @@
+EditorConfig==0.12.3
+hexdump==3.3
+jsbeautifier==1.14.0
+PySide2==5.15.2
+shiboken2==5.15.2
+six==1.16.0
+yara==1.7.7
