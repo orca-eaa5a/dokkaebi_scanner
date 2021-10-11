@@ -1,6 +1,6 @@
 # DokEbin Scanner
 
-![pic](C:\Users\dlfgu\OneDrive\Desktop\orca_lab\python proj\dokkaebi_scanner\storage\pic.PNG)
+![pic](./storage/pic.PNG)
 
 ## Description
 
