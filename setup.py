@@ -2,11 +2,11 @@ from setuptools import setup, find_packages
 
 setup(
     name='DoKEBin',
-    version='Beta 0.1',
+    version='0.1',
     description='Hangul Word Document Malware Scanner',
     author='orca.eaa5a',
     author_email='dlfguswn@naver.com',
-    url='https://gitlab.com/latteonterrace/dokkaebi_scanner.git',
+    url='https://github.com/orca-eaa5a/dokkaebi_scanner.git',
     python_requires  = '>=3',
     packages=find_packages(exclude = ['sample*', 'tests*', ]),
     package_data={
@@ -28,7 +28,7 @@ setup(
         'PySide2==5.15.2',
         'shiboken2',
         'six==1.16.0',
-        'yara==1.7.7',
+        #'yara==1.7.7', <-- manual install
     ],
     scripts=['main.py'],
 )
