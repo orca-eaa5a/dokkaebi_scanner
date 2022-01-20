@@ -51,6 +51,8 @@ Please contacts use E-Mail to dlfguswn@naver.com
 
 * 0.1
     * Initial Release (Beta Ver)
+* 0.1a
+    * Implement large file browsing (Beta Ver)
 
 
 
