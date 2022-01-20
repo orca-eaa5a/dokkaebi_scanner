@@ -1,12 +1,14 @@
 from io import BytesIO
+import io
 import os
 import sys
 import threading
+from zlib import decompress
 import PySide2
 import hexdump
 from PySide2.QtUiTools import QUiLoader
 from PySide2.QtWidgets import QApplication, QMessageBox, QMainWindow
-from PySide2.QtCore import QFile, QIODevice, Signal, QEvent, QObject, QThread
+from PySide2.QtCore import QFile, QIODevice, QTimer, Signal, QEvent, QObject, QThread
 from PySide2.QtGui import QIcon, QStandardItemModel, QFont, QTextDocument, QTextOption
 from PySide2.QtWidgets import *
 from xml.sax.saxutils import escape as escape
@@ -58,55 +60,68 @@ def clickable(widget, type, function):
     filter = Filter(widget)
     widget.installEventFilter(filter)
     return filter.clicked
+            
+class HexDump:
+    def __init__(self, QMainWindow, off_window, hex_window, ascii_window) -> None:
+        self.lines = None
+        self.total_length = 0
+        self.current_line = 0
+        self.QMainWindow = QMainWindow
+        self.off_window = off_window
+        self.hex_window = hex_window
+        self.ascii_window = ascii_window
+        self.timer = QTimer()
+        self.timer.timeout.connect(self.load_hexdump)
+        self.timer.setInterval(500)
+        pass
 
-class QEditTextThread(QThread):
-    def __init__(self, text, _QMainWindow, parent=None) -> None:
-        super().__init__(parent=parent)
-        self.text = text
-        self._QMainWindow = _QMainWindow
-        self.main_window = _QMainWindow.main_window
-        self.progress = QProgressDialog("Read Files", "Cancle", 0, 100, self.main_window)
-        self.progress.setWindowModality(PySide2.QtCore.Qt.WindowModal)
+    def set_target(self, buf) -> None:
+        dump = hexdump.hexdump(buf, 'return')
+        sstream = io.StringIO(dump)
+        self.lines = sstream.readlines()
+        self.total_length = len(self.lines)
+    
+    def get_chunks(self, start_line, end_line=None) -> int:
+        chunk = None
+        if not end_line:
+            end_line = 1000
+        if start_line + end_line > self.total_length:
+            self.current_line = self.total_length
+            chunk = self.lines[start_line:]
+        else:
+            chunk = self.lines[start_line:start_line+end_line]
+            self.current_line = start_line+end_line
 
-
-    def run(self):
-        import io
-        sstream = io.StringIO(self.text)
-        cnt = 0
         off = ""
         _hex = ""
         _ascii = ""
-        lines = sstream.readlines()
-        number_of_lines = len(lines)
-        
-        for line in lines:
+        for line in chunk: # parse hexdump lib output
             off += line[1:8]+"\n"
             _hex += line[10:58]+"\n"
             _ascii += line[60:]
-            cnt += 1
-            self.progress.setValue((cnt/number_of_lines)*100)
-            if self.progress.wasCanceled():
-                self.main_window.hexview.setText("")
-                self.main_window.asciiview.setText("")
-                self.main_window.offsetview.setText("")
-                break
-            if cnt % 100 == 0:
-                self.main_window.hexview.append(_hex[:-1])
-                self.main_window.asciiview.append(_ascii[:-1])
-                self.main_window.offsetview.append(off[:-1])
-                off = ""
-                _hex = ""
-                _ascii = ""
-            if number_of_lines <= cnt:
-                self.main_window.hexview.append(_hex[:-1])
-                self.main_window.asciiview.append(_ascii)
-                self.main_window.offsetview.append(off[:-1])
-                break
-        del _hex
-        del _ascii
-        del off
-        self._QMainWindow.scroll_bar1.setValue(0)
-            
+        
+        off = off[:-1]
+        _hex = _hex[:-1]
+        _ascii = _ascii[:-1]
+
+        return off, _hex, _ascii
+
+    def load(self):
+        self.timer.start()
+
+    def load_hexdump(self):
+        off, _hex, _ascii = self.get_chunks(self.current_line)
+        sb1_v = self.QMainWindow.scroll_bar1.value()
+        sb2_v = self.QMainWindow.scroll_bar2.value()
+        sb3_v = self.QMainWindow.scroll_bar3.value()
+        self.hex_window.append(_hex)
+        self.ascii_window.append(_ascii)
+        self.off_window.append(off)
+        if self.current_line == self.total_length:
+            self.timer.stop()
+        self.QMainWindow.scroll_bar1.setValue(sb1_v)
+        self.QMainWindow.scroll_bar2.setValue(sb2_v)
+        self.QMainWindow.scroll_bar3.setValue(sb3_v)
 
 class HwpScanMainWindow(QMainWindow):
     def __init__(self, main_window) -> None:
@@ -120,6 +135,8 @@ class HwpScanMainWindow(QMainWindow):
         self.setup_ui_event_listener()
         self.full_path = ""
         self.hwp_scanner = None
+        self.raw_hexdump = HexDump(self, self.main_window.offsetview, self.main_window.hexview, self.main_window.asciiview)
+        
         pass
 
     def set_mainwindow_property(self):
@@ -130,9 +147,14 @@ class HwpScanMainWindow(QMainWindow):
         self.main_window.hexview.setFont(QFont('Courier New', 15))
         self.main_window.asciiview.setFont(QFont('Courier New', 15))
         self.main_window.offsetview.setFont(QFont('Courier New', 15))
+        
         self.scroll_bar1 = self.main_window.offsetview.verticalScrollBar()
         self.scroll_bar2 = self.main_window.hexview.verticalScrollBar()
         self.scroll_bar3 = self.main_window.asciiview.verticalScrollBar()
+        #self.scroll_bar1_prev_value = self.scroll_bar1.value()
+        #self.scroll_bar2_prev_value = self.scroll_bar2.value()
+        #self.scroll_bar3_prev_value = self.scroll_bar3.value()
+        
         self.main_window.showMaximized()
 
         WINDOW_STATE = 1
@@ -190,7 +212,12 @@ class HwpScanMainWindow(QMainWindow):
             if not self.hwp_scanner.hwpx_flag:
                 dir_entry = self.hwp_scanner.ole_parser.get_dir_entry_by_name(widget_name)
                 self.main_window.tabWidget.setCurrentIndex(1)
-                self.setup_hexview_widget(dir_entry.get_decompressed_stream())
+                decompressed_stream = dir_entry.get_decompressed_stream()
+                if decompressed_stream:
+                    self.setup_hexview_widget(decompressed_stream)
+                else:
+                    self.setup_hexview_widget(dir_entry.get_stream())
+                
             else:
                 target_file = ""
                 for f in self.hwp_scanner.hwpx_docs.filelist:
@@ -287,6 +314,7 @@ class HwpScanMainWindow(QMainWindow):
             }
             """
         )
+        self.main_window.fileopen_btn.setToolTip("파일 열기")
         
         self.main_window.scan_btn.setStyleSheet("""
             QPushButton#scan_btn{
@@ -302,6 +330,7 @@ class HwpScanMainWindow(QMainWindow):
             }
         """
         )
+        self.main_window.scan_btn.setToolTip("스캔")
 
         self.main_window.export_btn.setStyleSheet("""
             QPushButton#export_btn{
@@ -317,6 +346,7 @@ class HwpScanMainWindow(QMainWindow):
             }
         """
         )
+        self.main_window.export_btn.setToolTip("추출")
 
     def widget_clear(self):
         from PySide2.QtWidgets import QTreeWidgetItemIterator
@@ -347,7 +377,7 @@ class HwpScanMainWindow(QMainWindow):
         clickable(self.main_window.frame_titlebar, QEvent.MouseButtonPress, self.ui_event_window_clicked).connect(lambda:None)
         clickable(self.main_window.frame_titlebar, QEvent.MouseMove, self.ui_event_move_window).connect(lambda:None)
         self.scroll_bar1.valueChanged.connect(lambda: self.ui_event_sycnscroll(self.scroll_bar1, self.scroll_bar2, self.scroll_bar3))
-
+        
     def setup_tree_view_widget(self, file_strt):
         def make_with_depth(cur_widget, cur_pos):
             for keys in cur_pos:
@@ -379,21 +409,17 @@ class HwpScanMainWindow(QMainWindow):
         del entry
         del first_key
 
+    
     def setup_hexview_widget(self, buf):
         #self.renew_hexview_widget(None)
         global running_text_thread
-        import io
-        d = hexdump.hexdump(buf, 'return')
-        self.main_window.hexview.setText("")
-        self.main_window.asciiview.setText("")
-        self.main_window.offsetview.setText("")
-        if running_text_thread:
-            if running_text_thread.isRunning():
-                running_text_thread.quit()
-            running_text_thread = QEditTextThread(d, self)
-        else:
-            running_text_thread = QEditTextThread(d, self)
-        running_text_thread.run()
+        
+        self.raw_hexdump.set_target(buf)
+        off, _hex, _ascii = self.raw_hexdump.get_chunks(0, 100) # load first 100 line
+        self.main_window.hexview.setText(_hex)
+        self.main_window.asciiview.setText(_ascii)
+        self.main_window.offsetview.setText(off)
+        self.raw_hexdump.load()
 
     def launch(self):
         self.main_window.show()

@@ -22,6 +22,7 @@ class DirectoryEntry(CStyleStructure):
         self.StartingSectorLocation = c_uint32
         self.StreamSize = c_uint64
         self.stream = None
+        self.zobj = zlib.decompressobj(-zlib.MAX_WBITS)
 
     def size(self):
         return self.sizeof()
@@ -37,7 +38,10 @@ class DirectoryEntry(CStyleStructure):
         return self.get_bytes()
         
     def get_decompressed_stream(self):
-        zobj = zlib.decompressobj(-zlib.MAX_WBITS)
-        stream = zobj.decompress(self.get_stream())
-        return stream
+        try:
+            stream = self.zobj.decompress(self.get_stream())
+            return stream
+        except:
+            return None
+        
     
