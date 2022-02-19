@@ -26,7 +26,7 @@ setup(
         'hexdump',
         'jsbeautifier',
         'PySide2==5.15.2',
-        'shiboken2',
+        'shiboken2==5.15.2',
         'six==1.16.0',
         #'yara==1.7.7', <-- manual install
     ],

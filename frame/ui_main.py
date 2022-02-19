@@ -19,7 +19,6 @@ from pyhwpscan.hwp_scan import HWPScanner
 
 WINDOW_STATE = 0
 global _path
-global running_text_thread
 global current_tree_widget_name
 
 def show_error_dialog(title, text):
@@ -109,6 +108,12 @@ class HexDump:
     def load(self):
         self.timer.start()
 
+    def check_loading(self):
+        return self.timer.isActive()
+
+    def quit_loading(self):
+        self.timer.stop()
+
     def load_hexdump(self):
         off, _hex, _ascii = self.get_chunks(self.current_line)
         sb1_v = self.QMainWindow.scroll_bar1.value()
@@ -125,9 +130,7 @@ class HexDump:
 
 class HwpScanMainWindow(QMainWindow):
     def __init__(self, main_window) -> None:
-        global running_text_thread
         global current_tree_widget_name
-        running_text_thread = None
         current_tree_widget_name = ""
         self.main_window = main_window
         self.set_mainwindow_property()
@@ -276,7 +279,11 @@ class HwpScanMainWindow(QMainWindow):
                         buf = b''
                         if not self.hwp_scanner.hwpx_flag:
                             dir_entry = self.hwp_scanner.ole_parser.get_dir_entry_by_name(current_tree_widget_name)
-                            buf = dir_entry.get_decompressed_stream()
+                            try:
+                                buf = dir_entry.get_decompressed_stream()
+                            except Exception as e:
+                                print(e)
+                                buf = dir_entry.get_stream()
                         else:
                             target_file = ""
                             for f in self.hwp_scanner.hwpx_docs.filelist:
@@ -412,8 +419,9 @@ class HwpScanMainWindow(QMainWindow):
     
     def setup_hexview_widget(self, buf):
         #self.renew_hexview_widget(None)
-        global running_text_thread
-        
+        if self.raw_hexdump.check_loading():
+            self.raw_hexdump.quit_loading()
+
         self.raw_hexdump.set_target(buf)
         off, _hex, _ascii = self.raw_hexdump.get_chunks(0, 100) # load first 100 line
         self.main_window.hexview.setText(_hex)
