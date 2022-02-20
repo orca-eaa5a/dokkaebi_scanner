@@ -1,4 +1,7 @@
 from ctypes import *
+from distutils.log import error
+import imp
+import zlib
 from structure.c_style_structure import CStyleStructure
 import struct
 from io import BytesIO
@@ -59,13 +62,21 @@ class HWPJScript:
 
     def get_scripts_streams(self, child_id):
         child = self.ole_container.get_dir_entry(child_id)
-        if child.name() == "JScriptVersion":
-            self.script_version.cast(child.get_decompressed_stream())
-        else:
-            new_default_script = DefaultJScript()
-            new_default_script.stream_name = child.name()
-            new_default_script.parse(BytesIO(child.get_decompressed_stream()))
-            self.script_streams.append(new_default_script)
+        try:
+            if child.name() == "JScriptVersion":
+                dec_stream = child.get_decompressed_stream()
+                self.script_version.cast(dec_stream)
+            else:
+                new_default_script = DefaultJScript()
+                new_default_script.stream_name = child.name()
+                dec_stream = child.get_decompressed_stream()
+                new_default_script.parse(BytesIO(dec_stream))
+                self.script_streams.append(new_default_script)
+        except Exception as unk_err:
+            print(unk_err)
+            pass
+            
+            
         if child.LeftSiblingID != 0xFFFFFFFF:
             self.get_scripts_streams(child.LeftSiblingID)
         if child.RightSiblingID != 0xFFFFFFFF:
@@ -74,3 +85,5 @@ class HWPJScript:
 
     def parse(self):
         self.get_scripts_streams(self.script_storage.ChildID)
+            
+

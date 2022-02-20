@@ -35,13 +35,8 @@ class HwpParser:
         self.hwp_bindata.parse()
 
     def parse_jscript(self, ole_container):
-        try:
-            self.hwp_jscript = HWPJScript(ole_container)
-            self.hwp_jscript.parse()
-        except Exception as e:
-            print(e)
-            print("Javascript is not found")
-            pass
+        self.hwp_jscript = HWPJScript(ole_container)
+        self.hwp_jscript.parse()
 
     def parse_docinfo(self, ole_container):
         self.hwp_docinfo = HWPDocInfo(ole_container)

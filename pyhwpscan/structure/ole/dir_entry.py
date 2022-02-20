@@ -2,7 +2,9 @@
 http://www.reversenote.info/ole-parser-python/
 '''
 
+from concurrent.futures import thread
 from ctypes import *
+from io import BytesIO
 import zlib
 from c_style_structure import CStyleStructure
 class DirectoryEntry(CStyleStructure):
@@ -34,16 +36,23 @@ class DirectoryEntry(CStyleStructure):
     def name_raw(self):
         return bytes(self.DirectoryEntryName)
     def get_stream(self):
-        return self.stream
+        return self.stream[:self.StreamSize]
     def raw(self):
         return self.get_bytes()
         
     def get_decompressed_stream(self):
-        try:
-            if not self.dec_stream:
+        if not self.dec_stream:
+            try:
                 self.dec_stream = self.zobj.decompress(self.get_stream())
-            return self.dec_stream
-        except:
-            return None
+            except zlib.error as z_err:
+                import structure.ole.hwp_distdoc as distdoc_decryptor
+                self.dec_stream = zlib.decompress(
+                    distdoc_decryptor.decrypt_distdoc(
+                        BytesIO(self.get_stream())
+                    ),
+                    -15
+                )
+
+        return self.dec_stream
         
     

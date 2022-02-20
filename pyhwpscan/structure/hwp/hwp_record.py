@@ -36,3 +36,21 @@ class HWPRecord:
         if not self.payload:
             return False
         return True
+
+    def parse_header(self, stream:BytesIO):
+        res = self.header.set_filed(stream)
+        if not res:
+            return False
+        return True
+        
+class HWPDistDocRecord:
+    def __init__(self) -> None:
+        self.header = HWPRecordHeader()
+        self.payload = None
+        pass
+
+    def parse(self, stream:BytesIO): # 4byte
+        record_bytes = stream.read(260)
+        record_stream = BytesIO(record_bytes)
+        self.header.set_filed(record_stream)
+        self.payload = record_stream.read()

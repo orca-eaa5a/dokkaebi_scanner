@@ -5,6 +5,7 @@ from common.errors import *
 class HWPDocInfo:
     HWPTAG_BEGIN = 0x10
     HWPTAG_ID_BINDATA = HWPTAG_BEGIN + 2
+    HWPTAG_DISTRIBUTE_DOC_DATA = HWPTAG_BEGIN + 12
 
     def __init__(self, ole_container) -> None:
         self.ole_container = ole_container
